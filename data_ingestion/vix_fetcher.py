@@ -1,4 +1,4 @@
-sk"""
+"""
 VIX (Volatility Index) data fetcher.
 
 Fetches VIX data from Yahoo Finance as a crash risk indicator.
@@ -6,7 +6,7 @@ Data is forward-filled to align with hourly Forex data.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import pandas as pd
@@ -14,8 +14,8 @@ from loguru import logger
 
 try:
     import yfinance as yf
-except ImportError:
-    raise ImportError("yfinance is required. Install with: pip install yfinance")
+except ImportError as exc:
+    raise ImportError("yfinance is required. Install with: pip install yfinance") from exc
 
 
 @dataclass

@@ -1,6 +1,3 @@
-# Signal Generation Module
-from .feature_engine import FeatureEngine
-from .ensemble import MLEnsemble
-from .signal_combiner import SignalCombiner
+"""Signal generation package."""
 
-__all__ = ["FeatureEngine", "MLEnsemble", "SignalCombiner"]
+__all__ = ["feature_engine", "ensemble", "signal_combiner"]

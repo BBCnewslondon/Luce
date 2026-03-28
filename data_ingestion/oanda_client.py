@@ -8,19 +8,19 @@ for hourly (H1) candlestick data.
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import pandas as pd
 from loguru import logger
 
 try:
-    import oandapyV20
     from oandapyV20 import API
+    from oandapyV20.contrib.factories import InstrumentsCandlesFactory
     from oandapyV20.endpoints import accounts, instruments, orders, positions
     from oandapyV20.exceptions import V20Error
-except ImportError:
-    raise ImportError("oandapyV20 is required. Install with: pip install oandapyV20")
+except ImportError as exc:
+    raise ImportError("oandapyV20 is required. Install with: pip install oandapyV20") from exc
 
 
 @dataclass
@@ -278,6 +278,131 @@ class OandaClient:
         result = pd.concat(all_candles, ignore_index=True)
         result = result.drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
         return result.reset_index(drop=True)
+
+    def get_candles_bulk(
+        self,
+        symbol: str,
+        granularity: str,
+        from_time: datetime,
+        to_time: datetime,
+        include_spread: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Fetch candles using InstrumentsCandlesFactory for efficient pagination.
+
+        Args:
+            symbol: Currency pair (e.g., "EUR_USD").
+            granularity: Candle granularity (e.g., "H1").
+            from_time: Inclusive UTC start time.
+            to_time: Inclusive UTC end time.
+            include_spread: Include bid/ask and derived spread.
+
+        Returns:
+            DataFrame with OHLCV and optional spread columns.
+        """
+        if granularity not in self.GRANULARITY_MAP:
+            raise ValueError(f"Invalid granularity: {granularity}")
+
+        params = {
+            "from": from_time.isoformat(),
+            "to": to_time.isoformat(),
+            "granularity": self.GRANULARITY_MAP[granularity],
+            "price": "MBA" if include_spread else "M",
+        }
+
+        batches: list[pd.DataFrame] = []
+        try:
+            for request in InstrumentsCandlesFactory(instrument=symbol, params=params):
+                response = self._make_request(request)
+                candles = response.get("candles", [])
+                if not candles:
+                    continue
+                batches.append(self._parse_candles(candles, symbol, include_spread))
+        except V20Error as exc:
+            logger.error(f"Bulk candle request failed for {symbol}: {exc}")
+            raise
+
+        if not batches:
+            return pd.DataFrame()
+
+        combined = pd.concat(batches, ignore_index=True)
+        combined = combined.drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+        return combined.reset_index(drop=True)
+
+    def get_order_book_snapshot(self, symbol: str, at_time: datetime) -> dict:
+        """
+        Fetch OANDA order-book snapshot for a symbol at a timestamp.
+
+        Args:
+            symbol: Currency pair symbol.
+            at_time: UTC time of snapshot.
+
+        Returns:
+            Dictionary with timestamp and basic positioning statistics.
+        """
+        params = {"time": at_time.isoformat()}
+        endpoint = instruments.InstrumentsOrderBook(instrument=symbol, params=params)
+        response = self._make_request(endpoint)
+        order_book = response.get("orderBook", {})
+
+        buckets = order_book.get("buckets", [])
+        if not buckets:
+            return {
+                "timestamp": pd.Timestamp(order_book.get("time", at_time)).tz_convert("UTC"),
+                "symbol": symbol,
+                "positioning_long_short_skew": None,
+                "positioning_density": None,
+            }
+
+        long_sum = 0.0
+        short_sum = 0.0
+        for bucket in buckets:
+            long_sum += float(bucket.get("longCountPercent", 0.0))
+            short_sum += float(bucket.get("shortCountPercent", 0.0))
+
+        denom = max(long_sum + short_sum, 1e-9)
+        skew = (long_sum - short_sum) / denom
+
+        return {
+            "timestamp": pd.Timestamp(order_book.get("time", at_time)).tz_convert("UTC"),
+            "symbol": symbol,
+            "positioning_long_short_skew": skew,
+            "positioning_density": len(buckets),
+        }
+
+    def get_order_book_range(
+        self,
+        symbol: str,
+        timestamps: pd.DatetimeIndex,
+    ) -> pd.DataFrame:
+        """
+        Fetch order-book positioning snapshots for multiple timestamps.
+
+        Args:
+            symbol: Currency pair symbol.
+            timestamps: UTC timestamps where snapshots should be queried.
+
+        Returns:
+            DataFrame with positioning features by timestamp.
+        """
+        records = []
+        for ts in timestamps:
+            try:
+                records.append(self.get_order_book_snapshot(symbol=symbol, at_time=ts.to_pydatetime()))
+            except V20Error:
+                logger.warning(f"Order-book snapshot unavailable for {symbol} at {ts}")
+                records.append(
+                    {
+                        "timestamp": ts,
+                        "symbol": symbol,
+                        "positioning_long_short_skew": None,
+                        "positioning_density": None,
+                    }
+                )
+
+        if not records:
+            return pd.DataFrame()
+        return pd.DataFrame(records).sort_values("timestamp").reset_index(drop=True)
 
     def get_current_price(self, symbol: str) -> dict:
         """

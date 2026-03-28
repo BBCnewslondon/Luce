@@ -1,7 +1,9 @@
-# Data Ingestion Module
-from .oanda_client import OandaClient
-from .vix_fetcher import VixFetcher
-from .cot_fetcher import CotFetcher
-from .feature_store import FeatureStore
+"""Data ingestion package."""
 
-__all__ = ["OandaClient", "VixFetcher", "CotFetcher", "FeatureStore"]
+__all__ = [
+	"oanda_client",
+	"vix_fetcher",
+	"cot_fetcher",
+	"feature_store",
+	"pipeline",
+]

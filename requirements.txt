@@ -17,6 +17,7 @@ oandapyV20>=0.7.2
 # Data fetching
 yfinance>=0.2.30
 requests>=2.31.0
+alphalens>=0.4.0
 
 # Data storage
 pyarrow>=14.0.0

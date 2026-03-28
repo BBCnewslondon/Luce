@@ -1,6 +1,3 @@
-# Evaluation Module
-from .metrics import PerformanceMetrics
-from .walk_forward import WalkForwardValidator
-from .reporting import ReportGenerator
+"""Evaluation package."""
 
-__all__ = ["PerformanceMetrics", "WalkForwardValidator", "ReportGenerator"]
+__all__ = ["metrics", "walk_forward", "reporting"]
