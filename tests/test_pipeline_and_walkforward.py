@@ -80,6 +80,31 @@ class DummyVixFetcher:
         )
 
 
+class DummySentimentFetcher:
+    def fetch(self, symbol, start_date, end_date):
+        ts = pd.date_range(start=start_date, end=end_date, freq="6h", tz="UTC")
+        return pd.DataFrame(
+            {
+                "timestamp": ts,
+                "sentiment_score": np.linspace(-0.2, 0.3, len(ts)),
+                "relevance": np.full(len(ts), 0.7),
+                "novelty": np.linspace(0.5, 0.9, len(ts)),
+            }
+        )
+
+    def aggregate_to_hourly(self, sentiment_df, target_timestamps):
+        sent = sentiment_df.copy().rename(
+            columns={"relevance": "sentiment_relevance", "novelty": "sentiment_novelty"}
+        )
+        sent["timestamp"] = pd.to_datetime(sent["timestamp"], utc=True).dt.floor("h")
+        sent["sentiment_buzz"] = 1.0
+        merged = pd.DataFrame({"timestamp": target_timestamps}).merge(sent, on="timestamp", how="left")
+        for c in ["sentiment_score", "sentiment_relevance", "sentiment_novelty"]:
+            merged[c] = merged[c].ffill()
+        merged["sentiment_buzz"] = merged["sentiment_buzz"].fillna(0.0)
+        return merged
+
+
 def test_end_to_end_pipeline_and_walk_forward():
     req = IngestionRequest(
         symbol="EUR_USD",
@@ -93,11 +118,13 @@ def test_end_to_end_pipeline_and_walk_forward():
         feature_engine=DummyFeatureEngine(),
         vix_fetcher=DummyVixFetcher(),
         cot_fetcher=None,
+        sentiment_fetcher=DummySentimentFetcher(),
         include_order_book=True,
     )
 
     assert not features.empty
     assert "target_return_1bar" in features.columns
+    assert "sentiment_score" in features.columns
 
     result = run_walk_forward_backtest(
         frame=features,

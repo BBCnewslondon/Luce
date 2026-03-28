@@ -24,6 +24,7 @@ def build_historical_feature_frame(
     feature_engine: Any,
     vix_fetcher: Optional[Any] = None,
     cot_fetcher: Optional[Any] = None,
+    sentiment_fetcher: Optional[Any] = None,
     include_order_book: bool = True,
 ) -> pd.DataFrame:
     """
@@ -72,6 +73,18 @@ def build_historical_feature_frame(
         cot_symbol = cot_fetcher.get_symbol_positioning(request.symbol, request.from_time, request.to_time)
         cot_hourly = cot_fetcher.forward_fill_to_hourly(cot_symbol, pd.DatetimeIndex(frame["timestamp"]))
         frame = frame.merge(cot_hourly, on="timestamp", how="left")
+
+    if sentiment_fetcher is not None:
+        sentiment_events = sentiment_fetcher.fetch(
+            symbol=request.symbol,
+            start_date=request.from_time,
+            end_date=request.to_time,
+        )
+        sentiment_hourly = sentiment_fetcher.aggregate_to_hourly(
+            sentiment_events,
+            pd.DatetimeIndex(frame["timestamp"]),
+        )
+        frame = frame.merge(sentiment_hourly, on="timestamp", how="left")
 
     frame = feature_engine.prepare_ml_features(frame, drop_na=True)
     return frame.sort_values("timestamp").reset_index(drop=True)

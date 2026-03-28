@@ -35,6 +35,8 @@ def test_fit_predict_generate_signal_frame_shapes():
         target_column="target",
         config=EnsembleConfig(),
     )
+    assert set(bundle.models.keys()) == {"knn", "svm", "rf", "gbt"}
+
     pred = predict_ensemble(df, bundle)
     sig = generate_signal_frame(df, pred, threshold=0.0)
 

@@ -94,7 +94,9 @@ def rolling_spearman_ic(
     values = [np.nan] * len(pair)
     for i in range(window - 1, len(pair)):
         sl = pair.iloc[i - window + 1 : i + 1]
-        values[i] = spearmanr(sl["factor"], sl["forward"], nan_policy="omit")[0]
+        res = spearmanr(sl["factor"], sl["forward"], nan_policy="omit")
+        ic_val = res.statistic if hasattr(res, "statistic") else res[0]
+        values[i] = float(ic_val)
 
     return pd.Series(values, index=pair.index, name="rolling_ic")
 
@@ -212,7 +214,8 @@ def alpha_decay_profile(
             ic = np.nan
             mean_signed = np.nan
         else:
-            ic = spearmanr(aligned["factor"], aligned["forward"], nan_policy="omit")[0]
+            res = spearmanr(aligned["factor"], aligned["forward"], nan_policy="omit")
+            ic = res.statistic if hasattr(res, "statistic") else res[0]
             mean_signed = (aligned["sign"] * aligned["forward"]).mean()
 
         rows.append(
@@ -224,3 +227,95 @@ def alpha_decay_profile(
         )
 
     return pd.DataFrame(rows)
+
+
+def vwap(price: pd.Series, volume: pd.Series) -> float:
+    """
+    Compute volume-weighted average price.
+
+    Args:
+        price: Price series.
+        volume: Volume/quantity series.
+
+    Returns:
+        VWAP as float. NaN when total volume is zero.
+    """
+    aligned = pd.concat([price, volume], axis=1).dropna()
+    if aligned.empty:
+        return float("nan")
+
+    aligned.columns = ["price", "volume"]
+    total_volume = float(aligned["volume"].sum())
+    if total_volume <= 0:
+        return float("nan")
+
+    return float((aligned["price"] * aligned["volume"]).sum() / total_volume)
+
+
+def implementation_shortfall_bps(
+    executed_price: float,
+    benchmark_price: float,
+    side: str,
+) -> float:
+    """
+    Compute signed implementation shortfall in basis points.
+
+    Positive value is adverse execution cost:
+    - buy: executed > benchmark
+    - sell: executed < benchmark
+    """
+    side_norm = side.lower().strip()
+    if side_norm not in {"buy", "sell"}:
+        raise ValueError("side must be 'buy' or 'sell'")
+    if benchmark_price <= 0:
+        return float("nan")
+
+    sign = 1.0 if side_norm == "buy" else -1.0
+    return float(sign * (executed_price - benchmark_price) / benchmark_price * 10000.0)
+
+
+def evaluate_execution_shortfall_vs_vwap(
+    executions: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Evaluate implementation shortfall vs VWAP per order.
+
+    Required columns:
+    - order_id
+    - side ('buy'/'sell')
+    - executed_price
+    - executed_qty
+    - benchmark_price
+    - benchmark_volume
+
+    Returns:
+        DataFrame with per-order executed VWAP, benchmark VWAP, and shortfall (bps).
+    """
+    required = {
+        "order_id",
+        "side",
+        "executed_price",
+        "executed_qty",
+        "benchmark_price",
+        "benchmark_volume",
+    }
+    if not required.issubset(executions.columns):
+        raise KeyError(f"executions must contain {sorted(required)}")
+
+    rows = []
+    for order_id, group in executions.groupby("order_id"):
+        side = str(group["side"].iloc[0]).lower()
+        exec_vwap = vwap(group["executed_price"], group["executed_qty"])
+        bench_vwap = vwap(group["benchmark_price"], group["benchmark_volume"])
+        shortfall = implementation_shortfall_bps(exec_vwap, bench_vwap, side)
+        rows.append(
+            {
+                "order_id": order_id,
+                "side": side,
+                "executed_vwap": exec_vwap,
+                "benchmark_vwap": bench_vwap,
+                "implementation_shortfall_bps": shortfall,
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values("order_id").reset_index(drop=True)

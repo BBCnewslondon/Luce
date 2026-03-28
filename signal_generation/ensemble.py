@@ -13,6 +13,10 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 
 
 @dataclass(frozen=True)
@@ -21,9 +25,10 @@ class EnsembleConfig:
 
     model_weights: Mapping[str, float] = field(
         default_factory=lambda: {
-            "gbr": 0.5,
-            "rf": 0.3,
-            "gbt_alt": 0.2,
+            "knn": 0.25,
+            "svm": 0.25,
+            "rf": 0.25,
+            "gbt": 0.25,
         }
     )
     random_state: int = 42
@@ -75,7 +80,11 @@ def lag_feature_columns(
 
 def _default_models(random_state: int) -> Dict[str, Any]:
     return {
-        "gbr": GradientBoostingRegressor(random_state=random_state),
+        "knn": KNeighborsRegressor(n_neighbors=25, weights="distance"),
+        "svm": make_pipeline(
+            StandardScaler(),
+            SVR(C=1.0, epsilon=0.001, kernel="rbf", gamma="scale"),
+        ),
         "rf": RandomForestRegressor(
             n_estimators=300,
             max_depth=8,
@@ -83,11 +92,11 @@ def _default_models(random_state: int) -> Dict[str, Any]:
             random_state=random_state,
             n_jobs=-1,
         ),
-        "gbt_alt": GradientBoostingRegressor(
+        "gbt": GradientBoostingRegressor(
             learning_rate=0.03,
             n_estimators=250,
             max_depth=3,
-            random_state=random_state + 7,
+            random_state=random_state,
         ),
     }
 
@@ -134,6 +143,8 @@ def fit_ensemble(
     base_models = _default_models(cfg.random_state)
     fitted: Dict[str, Any] = {}
     for name, model in base_models.items():
+        if name not in cfg.model_weights:
+            continue
         fitted[name] = model.fit(x, y)
 
     weights = dict(cfg.model_weights)

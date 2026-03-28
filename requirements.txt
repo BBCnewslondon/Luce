@@ -18,6 +18,7 @@ oandapyV20>=0.7.2
 yfinance>=0.2.30
 requests>=2.31.0
 alphalens>=0.4.0
+vaderSentiment>=3.3.2
 
 # Data storage
 pyarrow>=14.0.0
