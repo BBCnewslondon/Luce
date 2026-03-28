@@ -1,0 +1,53 @@
+# Forex Trading Bot Configuration
+# API credentials should be set via environment variables
+
+oanda:
+  account_id: ${OANDA_ACCOUNT_ID}
+  api_token: ${OANDA_API_TOKEN}
+  environment: "practice"  # "practice" or "live"
+
+symbols:
+  - EUR_USD
+  - GBP_USD
+  - USD_JPY
+  - USD_CHF
+  - AUD_USD
+  - USD_CAD
+
+trading:
+  granularity: "H1"
+  lookback_bars: 500
+  signal_threshold: 0.6  # Minimum confidence to trade
+
+risk:
+  max_position_pct: 0.02  # 2% of equity per position
+  max_drawdown_pct: 0.15  # 15% drawdown kill switch
+  max_open_positions: 3
+  atr_period: 14
+  atr_multiplier: 2.0  # ATR multiplier for stop loss
+
+costs:
+  spread_pips:
+    EUR_USD: 0.8
+    GBP_USD: 1.2
+    USD_JPY: 1.0
+    USD_CHF: 1.5
+    AUD_USD: 1.0
+    USD_CAD: 1.2
+  commission_per_lot: 3.50
+  slippage_base_pips: 0.5
+  slippage_vol_multiplier: 0.1
+
+data_paths:
+  feature_store: "./data/features"
+  models: "./data/models"
+  logs: "./logs"
+  metrics: "./data/metrics"
+
+vix:
+  source: "yahoo"  # "yahoo" or "cboe"
+  ticker: "^VIX"
+
+cot:
+  source: "cftc"
+  report_type: "disaggregated"

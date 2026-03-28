@@ -1,0 +1,82 @@
+# ML Model Configuration
+
+ensemble:
+  models:
+    - lightgbm
+    - xgboost
+    - random_forest
+  weights:
+    - 0.4
+    - 0.4
+    - 0.2
+
+training:
+  train_window_days: 1260  # 5 years of trading days
+  validation_window_days: 252  # 1 year
+  retrain_frequency: "monthly"
+  target: "forward_return_1bar"
+
+lightgbm:
+  objective: "regression"
+  boosting_type: "gbdt"
+  num_leaves: 31
+  learning_rate: 0.05
+  n_estimators: 200
+  min_child_samples: 20
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_alpha: 0.1
+  reg_lambda: 0.1
+  random_state: 42
+
+xgboost:
+  objective: "reg:squarederror"
+  max_depth: 6
+  learning_rate: 0.05
+  n_estimators: 200
+  min_child_weight: 3
+  subsample: 0.8
+  colsample_bytree: 0.8
+  reg_alpha: 0.1
+  reg_lambda: 0.1
+  random_state: 42
+
+random_forest:
+  n_estimators: 100
+  max_depth: 10
+  min_samples_split: 10
+  min_samples_leaf: 5
+  max_features: "sqrt"
+  random_state: 42
+
+features:
+  # Trend indicators
+  sma_periods: [20, 50, 200]
+  ema_periods: [12, 26]
+  adx_period: 14
+  aroon_period: 25
+
+  # Momentum indicators
+  rsi_period: 14
+  stoch_periods: [14, 3]  # %K period, %D smoothing
+  macd_periods: [12, 26, 9]  # fast, slow, signal
+  roc_period: 10
+  williams_period: 14
+
+  # Volatility indicators
+  atr_period: 14
+  bb_period: 20
+  bb_std: 2.0
+  keltner_period: 20
+  keltner_atr_mult: 1.5
+
+walk_forward:
+  expanding_window: true
+  min_train_samples: 2520  # 10 years minimum
+  purge_gap_bars: 24  # 24 hours gap between train/test
+  embargo_bars: 6  # 6 hours after test start
+
+alpha_decay:
+  monitoring_window_days: 20
+  decay_threshold: 0.5  # Retrain if alpha drops below 50%
+  ic_threshold: 0.02  # Minimum acceptable IC
