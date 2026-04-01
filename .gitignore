@@ -1,0 +1,26 @@
+# Python byte-code and cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test and coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets
+.env
+
+# Runtime data directories (mounted as Docker volumes)
+data/
+logs/
+
+# Editor / OS artefacts
+.DS_Store
+*.swp
+*.swo
