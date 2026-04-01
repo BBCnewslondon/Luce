@@ -1,0 +1,27 @@
+# Python byte-code and cache
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets — never bake credentials into the image
+.env
+
+# Data and model artifacts (mounted as volumes at runtime)
+data/
+logs/
+
+# Git
+.git/
+.gitignore
+
+# Editor / OS artefacts
+.DS_Store
+*.swp
+*.swo

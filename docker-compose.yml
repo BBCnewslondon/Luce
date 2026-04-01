@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  luce:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: luce:latest
+    env_file:
+      - .env
+    environment:
+      - OANDA_ACCOUNT_ID=${OANDA_ACCOUNT_ID}
+      - OANDA_API_TOKEN=${OANDA_API_TOKEN}
+      - OANDA_ENVIRONMENT=${OANDA_ENVIRONMENT:-practice}
+    volumes:
+      # Persist data, model artifacts and logs outside the container
+      - luce-features:/app/data/features
+      - luce-models:/app/data/models
+      - luce-metrics:/app/data/metrics
+      - luce-logs:/app/logs
+    restart: unless-stopped
+
+volumes:
+  luce-features:
+  luce-models:
+  luce-metrics:
+  luce-logs:
