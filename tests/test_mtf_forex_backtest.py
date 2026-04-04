@@ -39,7 +39,7 @@ def test_build_mtf_signal_frame_has_required_outputs_and_shifted_h4_columns():
     assert out["signals"].isin(["long_entry", "short_entry", "stop_exit", "filter_exit", "flat"]).all()
     assert out["h4_trend_active"].dtype == bool
     assert out["drawdown"].le(0).all()
-    mapped_h4_ema = h4["close"].ewm(span=8, adjust=False).mean().shift(1).reindex(out.index, method="ffill")
+    mapped_h4_ema = h4["close"].ewm(span=8, adjust=False).mean().shift(1).reindex(out.index).ffill()
     comparable = out[["h4_ema_8"]].join(mapped_h4_ema.rename("expected")).dropna()
     assert np.allclose(comparable["h4_ema_8"].values, comparable["expected"].values)
 

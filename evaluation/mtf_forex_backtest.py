@@ -114,7 +114,7 @@ def build_mtf_signal_frame(
     merge_cols = ["trend_bull", "trend_bear", "trend_active", f"ema_{cfg.ema_periods[0]}"]
     df4_lag = df4_lag[merge_cols].rename(columns=lambda c: f"h4_{c}")
 
-    df = df5.join(df4_lag.reindex(df5.index, method="ffill"), how="left")
+    df = df5.join(df4_lag.reindex(df5.index).ffill(), how="left")
     for col in ["h4_trend_bull", "h4_trend_bear", "h4_trend_active"]:
         df[col] = df[col].fillna(False).astype(bool)
 
@@ -137,7 +137,8 @@ def build_mtf_signal_frame(
         & (df["close"] < df[f"ema_{fast}"])
     )
 
-    spread_cost = (cfg.spread_pips * cfg.pip_size) / df["close"].replace(0, np.nan)
+    # Treat zero close as invalid data point to avoid divide-by-zero in spread normalization.
+    spread_cost = (cfg.spread_pips * cfg.pip_size) / df["close"].replace(0.0, np.nan)
     long_stop = df["low"].shift(1).rolling(cfg.stop_lookback).min()
     short_stop = df["high"].shift(1).rolling(cfg.stop_lookback).max()
 
@@ -185,7 +186,8 @@ def build_mtf_signal_frame(
         trade_id[i] = current_trade if current_pos != 0 else 0
 
     df["signal_event"] = event
-    df["signal"] = np.where(df["signal_event"] == "long_entry", 1, np.where(df["signal_event"] == "short_entry", -1, 0))
+    signal_map = {"long_entry": 1, "short_entry": -1}
+    df["signal"] = df["signal_event"].map(signal_map).fillna(0).astype(int)
     df["signals"] = df["signal_event"]
     df["position"] = position
     df["stop_price"] = stop_price
