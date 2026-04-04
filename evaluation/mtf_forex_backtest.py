@@ -53,10 +53,20 @@ def _add_indicators(frame: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.DataFrame
     return out
 
 
+def _validate_ohlcv(frame: pd.DataFrame, name: str) -> None:
+    required = {"open", "high", "low", "close", "volume"}
+    if not required.issubset(frame.columns):
+        raise KeyError(f"{name} must contain columns: {sorted(required)}")
+    if frame.empty:
+        raise ValueError(f"{name} is empty")
+    if (pd.to_numeric(frame["close"], errors="coerce") <= 0).any():
+        raise ValueError(f"{name} contains non-positive close values")
+
+
 def _bullish_filter(ind: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.Series:
     if len(cfg.ema_periods) < 4:
         raise ValueError("ema_periods must contain at least 4 periods")
-    fast, mid_fast, mid_slow, slow = cfg.ema_periods[0], cfg.ema_periods[1], cfg.ema_periods[2], cfg.ema_periods[3]
+    fast, mid_fast, mid_slow, slow = cfg.ema_periods[:4]
     rsi_a, rsi_b = cfg.rsi_periods
     return (
         (ind[f"ema_{slow}"] < ind[f"ema_{mid_slow}"])
@@ -71,7 +81,7 @@ def _bullish_filter(ind: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.Series:
 def _bearish_filter(ind: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.Series:
     if len(cfg.ema_periods) < 4:
         raise ValueError("ema_periods must contain at least 4 periods")
-    fast, mid_fast, mid_slow, slow = cfg.ema_periods[0], cfg.ema_periods[1], cfg.ema_periods[2], cfg.ema_periods[3]
+    fast, mid_fast, mid_slow, slow = cfg.ema_periods[:4]
     rsi_a, rsi_b = cfg.rsi_periods
     return (
         (ind[f"ema_{slow}"] > ind[f"ema_{mid_slow}"])
@@ -97,6 +107,8 @@ def build_mtf_signal_frame(
     - strategy_return, cumulative_return, drawdown
     """
     cfg = config or MTFBacktestConfig()
+    _validate_ohlcv(data_5m, "data_5m")
+    _validate_ohlcv(data_4h, "data_4h")
     df5 = _add_indicators(data_5m.copy(), cfg)
     df4 = _add_indicators(data_4h.copy(), cfg)
     indicator_cols = [f"ema_{p}" for p in cfg.ema_periods] + [
@@ -111,7 +123,16 @@ def build_mtf_signal_frame(
     df4_lag["trend_bear"] = _bearish_filter(df4_lag, cfg)
     df4_lag["trend_active"] = df4_lag["trend_bull"] | df4_lag["trend_bear"]
 
-    merge_cols = ["trend_bull", "trend_bear", "trend_active", f"ema_{cfg.ema_periods[0]}"]
+    merge_cols = [
+        "trend_bull",
+        "trend_bear",
+        "trend_active",
+        f"ema_{cfg.ema_periods[0]}",
+        "macd_line",
+        "macd_signal",
+        f"rsi_{cfg.rsi_periods[0]}",
+        f"rsi_{cfg.rsi_periods[1]}",
+    ]
     df4_lag = df4_lag[merge_cols].rename(columns=lambda c: f"h4_{c}")
 
     df = df5.join(df4_lag.reindex(df5.index).ffill(), how="left")
@@ -137,8 +158,7 @@ def build_mtf_signal_frame(
         & (df["close"] < df[f"ema_{fast}"])
     )
 
-    # Treat zero close as invalid data point to avoid divide-by-zero in spread normalization.
-    spread_cost = (cfg.spread_pips * cfg.pip_size) / df["close"].replace(0.0, np.nan)
+    spread_cost = (cfg.spread_pips * cfg.pip_size) / df["close"]
     long_stop = df["low"].shift(1).rolling(cfg.stop_lookback).min()
     short_stop = df["high"].shift(1).rolling(cfg.stop_lookback).max()
 
@@ -154,28 +174,28 @@ def build_mtf_signal_frame(
     for i in range(len(df)):
         row = df.iloc[i]
 
-        if current_pos == 1.0 and (not bool(row["h4_trend_bull"])):
+        if current_pos == 1.0 and (not row["h4_trend_bull"]):
             current_pos = 0.0
             current_stop = np.nan
             event[i] = "filter_exit"
-        elif current_pos == -1.0 and (not bool(row["h4_trend_bear"])):
+        elif current_pos == -1.0 and (not row["h4_trend_bear"]):
             current_pos = 0.0
             current_stop = np.nan
             event[i] = "filter_exit"
-        elif current_pos == 1.0 and pd.notna(current_stop) and float(row["low"]) <= float(current_stop):
+        elif current_pos == 1.0 and pd.notna(current_stop) and row["low"] <= current_stop:
             current_pos = 0.0
             current_stop = np.nan
             event[i] = "stop_exit"
-        elif current_pos == -1.0 and pd.notna(current_stop) and float(row["high"]) >= float(current_stop):
+        elif current_pos == -1.0 and pd.notna(current_stop) and row["high"] >= current_stop:
             current_pos = 0.0
             current_stop = np.nan
             event[i] = "stop_exit"
-        elif current_pos == 0.0 and bool(row["h4_trend_bull"]) and bool(row["m5_bull_confirm"]):
+        elif current_pos == 0.0 and row["h4_trend_bull"] and row["m5_bull_confirm"]:
             current_pos = 1.0
             current_trade += 1
             current_stop = long_stop.iloc[i]
             event[i] = "long_entry"
-        elif current_pos == 0.0 and bool(row["h4_trend_bear"]) and bool(row["m5_bear_confirm"]):
+        elif current_pos == 0.0 and row["h4_trend_bear"] and row["m5_bear_confirm"]:
             current_pos = -1.0
             current_trade += 1
             current_stop = short_stop.iloc[i]
@@ -192,9 +212,10 @@ def build_mtf_signal_frame(
     df["position"] = position
     df["stop_price"] = stop_price
     df["trade_id"] = trade_id
+    position_series = pd.Series(position, index=df.index)
     df["price_return"] = df["close"].pct_change().fillna(0.0)
-    turnover = pd.Series(position, index=df.index).diff().abs().fillna(np.abs(position[0]))
-    df["strategy_return"] = pd.Series(position, index=df.index).shift(1).fillna(0.0) * df["price_return"] - turnover * spread_cost.fillna(0.0)
+    turnover = position_series.diff().abs().fillna(0.0)
+    df["strategy_return"] = position_series.shift(1).fillna(0.0) * df["price_return"] - turnover * spread_cost
     df["equity_curve"] = (1.0 + df["strategy_return"]).cumprod()
     df["cumulative_return"] = df["equity_curve"] - 1.0
     df["drawdown"] = df["equity_curve"] / df["equity_curve"].cummax() - 1.0
@@ -206,12 +227,18 @@ def fetch_forex_data_yfinance(
     start: str,
     end: str,
 ) -> Dict[str, pd.DataFrame]:
-    """Fetch 5m and 4h OHLCV frames from yfinance for a Forex ticker."""
+    """Fetch 5m OHLCV and build a 4h frame by resampling downloaded 1h yfinance data.
+
+    Raises:
+        ValueError: If yfinance returns empty data for either timeframe.
+    """
     if yf is None:
         raise ImportError("yfinance is required. Install with: pip install yfinance")
 
     m5 = yf.download(ticker, interval="5m", start=start, end=end, progress=False, auto_adjust=False)
     h4 = yf.download(ticker, interval="1h", start=start, end=end, progress=False, auto_adjust=False)
+    if m5.empty or h4.empty:
+        raise ValueError(f"Empty yfinance response for ticker={ticker}, start={start}, end={end}")
 
     m5 = m5.rename(columns=str.lower)
     h4 = h4.rename(columns=str.lower).resample("4h").agg(
@@ -253,7 +280,7 @@ def make_mtf_plot(signal_frame: pd.DataFrame, title: str = "MTF Forex Backtest")
     starts = signal_frame.index[(active) & (~active.shift(1, fill_value=False))]
     ends = signal_frame.index[(~active) & (active.shift(1, fill_value=False))]
     if active.iloc[-1]:
-        ends = ends.append(pd.Index([signal_frame.index[-1]]))
+        ends = ends.union(pd.Index([signal_frame.index[-1]]))
 
     for start, end in zip(starts, ends):
         fig.add_vrect(
