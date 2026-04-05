@@ -101,6 +101,16 @@ class OandaClient:
             time.sleep(self.REQUEST_DELAY_SECONDS - elapsed)
         self._last_request_time = time.time()
 
+    @staticmethod
+    def _to_oanda_time(value: datetime) -> str:
+        """Serialize datetime to OANDA expected RFC3339 format (UTC Z suffix)."""
+        ts = pd.Timestamp(value)
+        if ts.tz is None:
+            ts = ts.tz_localize("UTC")
+        else:
+            ts = ts.tz_convert("UTC")
+        return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def _make_request(self, endpoint) -> dict:
         """
         Make an API request with rate limiting and error handling.
@@ -170,9 +180,9 @@ class OandaClient:
         if count is not None:
             params["count"] = min(count, self.MAX_CANDLES_PER_REQUEST)
         if from_time is not None:
-            params["from"] = from_time.isoformat()
+            params["from"] = self._to_oanda_time(from_time)
         if to_time is not None:
-            params["to"] = to_time.isoformat()
+            params["to"] = self._to_oanda_time(to_time)
 
         endpoint = instruments.InstrumentsCandles(instrument=symbol, params=params)
         response = self._make_request(endpoint)
@@ -304,8 +314,8 @@ class OandaClient:
             raise ValueError(f"Invalid granularity: {granularity}")
 
         params = {
-            "from": from_time.isoformat(),
-            "to": to_time.isoformat(),
+            "from": self._to_oanda_time(from_time),
+            "to": self._to_oanda_time(to_time),
             "granularity": self.GRANULARITY_MAP[granularity],
             "price": "MBA" if include_spread else "M",
         }
@@ -340,7 +350,7 @@ class OandaClient:
         Returns:
             Dictionary with timestamp and basic positioning statistics.
         """
-        params = {"time": at_time.isoformat()}
+        params = {"time": self._to_oanda_time(at_time)}
         endpoint = instruments.InstrumentsOrderBook(instrument=symbol, params=params)
         response = self._make_request(endpoint)
         order_book = response.get("orderBook", {})
