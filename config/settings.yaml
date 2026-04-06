@@ -9,6 +9,8 @@ oanda:
 symbols:
   - EUR_USD
   - GBP_USD
+  - GBP_NZD
+  - XAU_USD
   - USD_JPY
   - USD_CHF
   - AUD_USD
@@ -30,6 +32,8 @@ costs:
   spread_pips:
     EUR_USD: 0.8
     GBP_USD: 1.2
+    GBP_NZD: 2.0
+    XAU_USD: 2.5
     USD_JPY: 1.0
     USD_CHF: 1.5
     AUD_USD: 1.0

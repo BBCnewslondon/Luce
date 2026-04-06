@@ -21,6 +21,8 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 MAJOR_FX_TICKERS: Sequence[str] = (
     "EURUSD=X",
     "GBPUSD=X",
+    "GBPNZD=X",
+    "XAUUSD=X",
     "USDJPY=X",
     "USDCHF=X",
     "AUDUSD=X",

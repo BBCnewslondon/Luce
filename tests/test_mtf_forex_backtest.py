@@ -4,6 +4,7 @@ import pandas_ta as ta
 import evaluation.mtf_forex_backtest as mtf_module
 
 from evaluation.mtf_forex_backtest import (
+    MAJOR_FX_TICKERS,
     MTFBacktestConfig,
     build_trade_log,
     build_mtf_signal_frame,
@@ -459,3 +460,11 @@ def test_major_pairs_summary_includes_win_loss_pct_and_profit_factor(monkeypatch
     assert np.isclose(row["win_pct"], 50.0)
     assert np.isclose(row["loss_pct"], 50.0)
     assert np.isclose(row["profit_factor"], 2.0)
+
+
+def test_major_fx_universe_includes_gbpnzd():
+    assert "GBPNZD=X" in MAJOR_FX_TICKERS
+
+
+def test_major_fx_universe_includes_xauusd():
+    assert "XAUUSD=X" in MAJOR_FX_TICKERS
