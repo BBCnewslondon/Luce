@@ -1,0 +1,15 @@
+services:
+  mtf-oanda-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mtf-oanda-bot
+    environment:
+      OANDA_ACCOUNT_ID: ${OANDA_ACCOUNT_ID}
+      OANDA_API_TOKEN: ${OANDA_API_TOKEN}
+      OANDA_ENVIRONMENT: ${OANDA_ENVIRONMENT:-practice}
+      BOT_SYMBOL: ${BOT_SYMBOL:-EUR_USD}
+      BOT_ORDER_UNITS: ${BOT_ORDER_UNITS:-1000}
+      BOT_LOOKBACK_DAYS: ${BOT_LOOKBACK_DAYS:-45}
+      BOT_DRY_RUN: ${BOT_DRY_RUN:-true}
+    restart: unless-stopped
