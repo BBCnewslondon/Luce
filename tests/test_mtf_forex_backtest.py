@@ -55,7 +55,7 @@ def _make_trade_event_frame():
     )
 
 
-def test_build_mtf_signal_frame_has_required_outputs_and_shifted_h4_columns():
+def test_build_mtf_signal_frame_has_required_outputs_and_synchronized_h4_columns():
     idx5 = pd.date_range("2024-01-01", periods=1200, freq="5min", tz="UTC")
     idx4 = pd.date_range("2023-12-25", periods=400, freq="4h", tz="UTC")
     m5 = _make_ohlcv(idx5, base=1.08, drift=0.00003)
@@ -85,15 +85,15 @@ def test_build_mtf_signal_frame_has_required_outputs_and_shifted_h4_columns():
     assert out["signals"].equals(out["signal_event"])
     assert out["h4_trend_active"].dtype == bool
     assert out["drawdown"].le(0).all()
-    mapped_h4_ema = h4["close"].ewm(span=8, adjust=False).mean().shift(1).reindex(out.index).ffill()
+    mapped_h4_ema = h4["close"].ewm(span=8, adjust=False).mean().reindex(out.index).ffill()
     comparable = out[["h4_ema_8"]].join(mapped_h4_ema.rename("expected")).dropna()
     assert np.allclose(comparable["h4_ema_8"].values, comparable["expected"].values)
 
     macd = ta.macd(h4["close"], fast=8, slow=21, signal=5)
-    h4_macd_line = macd["MACD_8_21_5"].shift(1).reindex(out.index).ffill()
-    h4_macd_signal = macd["MACDs_8_21_5"].shift(1).reindex(out.index).ffill()
-    h4_rsi_13 = ta.rsi(h4["close"], length=13).shift(1).reindex(out.index).ffill()
-    h4_rsi_5 = ta.rsi(h4["close"], length=5).shift(1).reindex(out.index).ffill()
+    h4_macd_line = macd["MACD_8_21_5"].reindex(out.index).ffill()
+    h4_macd_signal = macd["MACDs_8_21_5"].reindex(out.index).ffill()
+    h4_rsi_13 = ta.rsi(h4["close"], length=13).reindex(out.index).ffill()
+    h4_rsi_5 = ta.rsi(h4["close"], length=5).reindex(out.index).ffill()
     merged = out[["h4_macd_line", "h4_macd_signal", "h4_rsi_13", "h4_rsi_5"]].join(
         pd.DataFrame(
             {
@@ -405,3 +405,57 @@ def test_major_pairs_subplots_include_trade_entry_and_exit_markers():
     names = {trace.name for trace in fig.data}
 
     assert {"Long Entry", "Short Entry", "Long Exit", "Short Exit"}.issubset(names)
+
+
+def test_default_transaction_costs_are_disabled():
+    cfg = MTFBacktestConfig()
+    assert cfg.spread_pips == 0.0
+    assert cfg.commission_pips == 0.0
+    assert cfg.slippage_pips == 0.0
+
+
+def test_major_pairs_summary_includes_win_loss_pct_and_profit_factor(monkeypatch):
+    idx = pd.date_range("2024-01-01", periods=4, freq="5min", tz="UTC")
+    mocked_signals = pd.DataFrame(
+        {
+            "close": [1.0, 0.9, 1.0, 1.2],
+            "signal_event": ["long_entry", "stop_exit", "long_entry", "take_profit_exit"],
+            "position": [1.0, 0.0, 1.0, 0.0],
+            "cumulative_return": [0.0, -0.1, -0.1, 0.1],
+            "drawdown": [0.0, -0.1, -0.1, -0.05],
+        },
+        index=idx,
+    )
+    stub_ohlcv = pd.DataFrame(
+        {
+            "open": [1.0],
+            "high": [1.0],
+            "low": [1.0],
+            "close": [1.0],
+            "volume": [1000],
+        },
+        index=pd.date_range("2024-01-01", periods=1, freq="5min", tz="UTC"),
+    )
+
+    monkeypatch.setattr(
+        mtf_module,
+        "fetch_forex_data_oanda",
+        lambda ticker, start, end, config=None: {"5m": stub_ohlcv, "4h": stub_ohlcv},
+    )
+    monkeypatch.setattr(
+        mtf_module,
+        "build_mtf_signal_frame",
+        lambda data_5m, data_4h, config=None: mocked_signals.copy(),
+    )
+    monkeypatch.setattr(mtf_module, "make_major_pairs_subplots", lambda signals_by_ticker, title: None)
+
+    result = mtf_module.run_mtf_major_pairs_backtest(tickers=["EURUSD=X"], start="2024-01-01", end="2024-01-02")
+    summary = result["summary"]
+    row = summary.iloc[0]
+
+    assert row["closed_trades"] == 2
+    assert row["winning_trades"] == 1
+    assert row["losing_trades"] == 1
+    assert np.isclose(row["win_pct"], 50.0)
+    assert np.isclose(row["loss_pct"], 50.0)
+    assert np.isclose(row["profit_factor"], 2.0)

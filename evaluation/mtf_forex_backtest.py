@@ -1,4 +1,4 @@
-"""Multi-timeframe FX backtest with lag-safe 4H trend filter and 5m execution."""
+"""Multi-timeframe FX backtest with synchronized 4H trend filter and 5m execution."""
 
 from __future__ import annotations
 
@@ -38,7 +38,9 @@ class MTFBacktestConfig:
     rsi_periods: Sequence[int] = (13, 5)
     stop_lookback: int = 5
     risk_reward_ratio: float = 3.0
-    spread_pips: float = 0.8
+    spread_pips: float = 0.0
+    commission_pips: float = 0.0
+    slippage_pips: float = 0.0
     pip_size: float = 0.0001
 
 
@@ -227,6 +229,52 @@ def build_trade_log(signal_frame: pd.DataFrame, ticker: Optional[str] = None) ->
     return pd.DataFrame(records, columns=columns)
 
 
+def _trade_outcome_metrics(trade_log: pd.DataFrame) -> Dict[str, float]:
+    """Compute win/loss percentages and profit factor from per-trade pnl_pct."""
+    if trade_log.empty or "pnl_pct" not in trade_log.columns:
+        return {
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_pct": 0.0,
+            "loss_pct": 0.0,
+            "profit_factor": np.nan,
+        }
+
+    pnl = pd.to_numeric(trade_log["pnl_pct"], errors="coerce").dropna()
+    if pnl.empty:
+        return {
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_pct": 0.0,
+            "loss_pct": 0.0,
+            "profit_factor": np.nan,
+        }
+
+    winning_trades = int((pnl > 0).sum())
+    losing_trades = int((pnl < 0).sum())
+    decisive_trades = winning_trades + losing_trades
+
+    win_pct = (winning_trades / decisive_trades * 100.0) if decisive_trades > 0 else 0.0
+    loss_pct = (losing_trades / decisive_trades * 100.0) if decisive_trades > 0 else 0.0
+
+    gross_profit = float(pnl[pnl > 0].sum())
+    gross_loss = float(-pnl[pnl < 0].sum())
+    if gross_loss > 0:
+        profit_factor = gross_profit / gross_loss
+    elif gross_profit > 0:
+        profit_factor = float("inf")
+    else:
+        profit_factor = np.nan
+
+    return {
+        "winning_trades": winning_trades,
+        "losing_trades": losing_trades,
+        "win_pct": float(win_pct),
+        "loss_pct": float(loss_pct),
+        "profit_factor": float(profit_factor) if pd.notna(profit_factor) else np.nan,
+    }
+
+
 def _bullish_filter(ind: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.Series:
     if len(cfg.ema_periods) < 4:
         raise ValueError("ema_periods must contain at least 4 periods")
@@ -263,7 +311,7 @@ def build_mtf_signal_frame(
     config: Optional[MTFBacktestConfig] = None,
 ) -> pd.DataFrame:
     """
-    Build 5m trading signals using lagged 4H trend filter.
+    Build 5m trading signals using synchronized 4H trend filter.
 
     Entries are triggered only when 4H regime direction is active and
     the 5m timeframe confirms the same regime conditions.
@@ -281,15 +329,7 @@ def build_mtf_signal_frame(
     fast, mid_fast, mid_slow, slow = cfg.ema_periods[0], cfg.ema_periods[1], cfg.ema_periods[2], cfg.ema_periods[3]
     rsi_a, rsi_b = cfg.rsi_periods
 
-    indicator_cols = [f"ema_{p}" for p in cfg.ema_periods] + [
-        "macd_line",
-        "macd_signal",
-        f"rsi_{cfg.rsi_periods[0]}",
-        f"rsi_{cfg.rsi_periods[1]}",
-    ]
     df4_lag = df4.copy()
-    df4_lag[indicator_cols] = df4_lag[indicator_cols].shift(1)
-    df4_lag["close"] = df4_lag["close"].shift(1)
     df4_lag["price_above_ema_fast"] = df4_lag["close"] > df4_lag[f"ema_{fast}"]
     df4_lag["price_below_ema_fast"] = df4_lag["close"] < df4_lag[f"ema_{fast}"]
     df4_lag["trend_bull"] = _bullish_filter(df4_lag, cfg) & df4_lag["price_above_ema_fast"]
@@ -336,7 +376,7 @@ def build_mtf_signal_frame(
         & (df["close"] < df[f"ema_{fast}"])
     )
 
-    spread_cost = (cfg.spread_pips * cfg.pip_size) / df["close"]
+    turnover_cost = ((cfg.spread_pips + cfg.commission_pips + cfg.slippage_pips) * cfg.pip_size) / df["close"]
     long_stop = df["low"].shift(1).rolling(cfg.stop_lookback).min()
     short_stop = df["high"].shift(1).rolling(cfg.stop_lookback).max()
 
@@ -427,7 +467,7 @@ def build_mtf_signal_frame(
     position_series = pd.Series(position, index=df.index)
     df["price_return"] = df["close"].pct_change().fillna(0.0)
     turnover = position_series.diff().abs().fillna(0.0)
-    df["strategy_return"] = position_series.shift(1).fillna(0.0) * df["price_return"] - turnover * spread_cost
+    df["strategy_return"] = position_series.shift(1).fillna(0.0) * df["price_return"] - turnover * turnover_cost
     df["equity_curve"] = (1.0 + df["strategy_return"]).cumprod()
     df["cumulative_return"] = df["equity_curve"] - 1.0
     df["drawdown"] = df["equity_curve"] / df["equity_curve"].cummax() - 1.0
@@ -770,6 +810,7 @@ def run_mtf_major_pairs_backtest(
             signals_by_ticker[ticker] = signals
             trade_log = build_trade_log(signals, ticker=ticker)
             trade_logs_by_ticker[ticker] = trade_log
+            trade_outcomes = _trade_outcome_metrics(trade_log)
 
             entries = int(signals["signal_event"].isin(["long_entry", "short_entry"]).sum())
             summary_rows.append(
@@ -778,6 +819,11 @@ def run_mtf_major_pairs_backtest(
                     "rows": int(len(signals)),
                     "entries": entries,
                     "closed_trades": int(len(trade_log)),
+                    "winning_trades": int(trade_outcomes["winning_trades"]),
+                    "losing_trades": int(trade_outcomes["losing_trades"]),
+                    "win_pct": float(trade_outcomes["win_pct"]),
+                    "loss_pct": float(trade_outcomes["loss_pct"]),
+                    "profit_factor": float(trade_outcomes["profit_factor"]),
                     "total_return": float(signals["cumulative_return"].iloc[-1]),
                     "max_drawdown": float(signals["drawdown"].min()),
                     "error": None,
@@ -790,6 +836,11 @@ def run_mtf_major_pairs_backtest(
                     "rows": 0,
                     "entries": 0,
                     "closed_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "win_pct": 0.0,
+                    "loss_pct": 0.0,
+                    "profit_factor": np.nan,
                     "total_return": np.nan,
                     "max_drawdown": np.nan,
                     "error": str(exc),
