@@ -468,3 +468,69 @@ def test_major_fx_universe_includes_gbpnzd():
 
 def test_major_fx_universe_includes_xauusd():
     assert "XAUUSD=X" in MAJOR_FX_TICKERS
+
+
+def test_backtest_defaults_to_oanda_universe_when_tickers_not_provided(monkeypatch):
+    idx = pd.date_range("2024-01-01", periods=3, freq="5min", tz="UTC")
+    discovered = ["EUR_USD", "GBP_USD"]
+
+    stub_ohlcv = pd.DataFrame(
+        {
+            "open": [1.0, 1.0, 1.0],
+            "high": [1.0, 1.0, 1.0],
+            "low": [1.0, 1.0, 1.0],
+            "close": [1.0, 1.0, 1.0],
+            "volume": [1000, 1000, 1000],
+        },
+        index=idx,
+    )
+    mocked_signals = pd.DataFrame(
+        {
+            "close": [1.0, 1.0, 1.0],
+            "signal_event": ["long_entry", "stop_exit", "flat"],
+            "position": [1.0, 0.0, 0.0],
+            "cumulative_return": [0.0, -0.1, -0.1],
+            "drawdown": [0.0, -0.1, -0.1],
+        },
+        index=idx,
+    )
+
+    fetch_calls = []
+
+    monkeypatch.setattr(mtf_module, "get_available_oanda_instruments", lambda only_tradeable=True: discovered)
+    monkeypatch.setattr(
+        mtf_module,
+        "fetch_forex_data_oanda",
+        lambda ticker, start, end, config=None: fetch_calls.append(ticker) or {"5m": stub_ohlcv, "4h": stub_ohlcv},
+    )
+    monkeypatch.setattr(
+        mtf_module,
+        "build_mtf_signal_frame",
+        lambda data_5m, data_4h, config=None: mocked_signals.copy(),
+    )
+    monkeypatch.setattr(mtf_module, "make_major_pairs_subplots", lambda signals_by_ticker, title: None)
+
+    result = mtf_module.run_mtf_major_pairs_backtest(start="2024-01-01", end="2024-01-02")
+
+    assert fetch_calls == discovered
+    assert result["tickers"] == discovered
+    assert result["universe_source"] == "oanda_account"
+
+
+def test_all_oanda_instruments_wrapper_delegates_to_major_runner(monkeypatch):
+    captured = {}
+
+    def fake_run(tickers=None, start=None, end=None, config=None):
+        captured["tickers"] = tickers
+        captured["start"] = start
+        captured["end"] = end
+        return {"ok": True}
+
+    monkeypatch.setattr(mtf_module, "run_mtf_major_pairs_backtest", fake_run)
+
+    result = mtf_module.run_mtf_all_oanda_instruments_backtest(start="2024-01-01", end="2024-01-02")
+
+    assert result == {"ok": True}
+    assert captured["tickers"] is None
+    assert captured["start"] == "2024-01-01"
+    assert captured["end"] == "2024-01-02"

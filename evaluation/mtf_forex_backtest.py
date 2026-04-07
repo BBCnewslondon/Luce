@@ -78,7 +78,7 @@ def _validate_ohlcv(frame: pd.DataFrame, name: str) -> None:
 
 
 def _to_oanda_instrument(symbol: str) -> str:
-    """Normalize common FX symbol formats to OANDA instrument format.
+    """Normalize common ticker formats to OANDA instrument format.
 
     Supported inputs:
     - "EUR_USD"
@@ -90,11 +90,27 @@ def _to_oanda_instrument(symbol: str) -> str:
         raw = raw[:-2]
     if "_" in raw:
         base, quote = raw.split("_", 1)
-        if len(base) == 3 and len(quote) == 3:
+        if base and quote and base.isalnum() and quote.isalnum():
             return f"{base}_{quote}"
     if len(raw) == 6 and raw.isalpha():
         return f"{raw[:3]}_{raw[3:]}"
     raise ValueError(f"Unsupported symbol format for OANDA: {symbol}")
+
+
+def get_available_oanda_instruments(only_tradeable: bool = True) -> list[str]:
+    """Discover available instrument names from the configured OANDA account.
+
+    Args:
+        only_tradeable: Keep only instruments currently flagged as tradeable.
+
+    Returns:
+        Sorted list of instrument names in OANDA format (for example, ``EUR_USD``).
+    """
+    # Local import keeps indicator-only unit tests independent of API credentials.
+    from data_ingestion.oanda_client import OandaClient
+
+    client = OandaClient()
+    return client.list_instrument_names(only_tradeable=only_tradeable)
 
 
 def _normalize_oanda_ohlcv(frame: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -786,19 +802,32 @@ def make_major_pairs_subplots(
 
 
 def run_mtf_major_pairs_backtest(
-    tickers: Sequence[str] = MAJOR_FX_TICKERS,
+    tickers: Optional[Sequence[str]] = None,
     start: Optional[str] = None,
     end: Optional[str] = None,
     config: Optional[MTFBacktestConfig] = None,
 ) -> Dict[str, object]:
-    """Run the MTF backtest on major FX pairs and return summary + subplot figure.
+    """Run the MTF backtest and return summary + subplot figure.
 
-    By default uses the most recent 45 days.
+    By default uses the most recent 45 days and attempts to test the full
+    tradeable OANDA account universe. If discovery fails, it falls back to
+    the static major-pairs list.
     """
     end_date = pd.to_datetime(end).date() if end is not None else date.today()
     start_date = pd.to_datetime(start).date() if start is not None else (end_date - timedelta(days=45))
     start_str = start_date.isoformat()
     end_str = end_date.isoformat()
+
+    universe_source = "provided"
+    if tickers is None:
+        try:
+            tickers = get_available_oanda_instruments(only_tradeable=True)
+            universe_source = "oanda_account"
+        except Exception:  # pragma: no cover - runtime/data-path dependent
+            tickers = MAJOR_FX_TICKERS
+            universe_source = "major_fallback"
+
+    tickers = list(dict.fromkeys(tickers))
 
     cfg = config or MTFBacktestConfig()
     signals_by_ticker: Dict[str, pd.DataFrame] = {}
@@ -868,9 +897,10 @@ def run_mtf_major_pairs_backtest(
             ]
         )
     if signals_by_ticker:
+        universe_label = "OANDA Instruments" if universe_source == "oanda_account" else "Major Pairs"
         figure = make_major_pairs_subplots(
             signals_by_ticker,
-            title=f"MTF Forex Backtest - Major Pairs ({start_str} to {end_str})",
+            title=f"MTF Forex Backtest - {universe_label} ({start_str} to {end_str})",
         )
     else:  # pragma: no cover - runtime/data-path dependent
         figure = go.Figure()
@@ -882,16 +912,27 @@ def run_mtf_major_pairs_backtest(
             yref="paper",
             showarrow=False,
         )
-        figure.update_layout(title=f"MTF Forex Backtest - Major Pairs ({start_str} to {end_str})")
+        figure.update_layout(title=f"MTF Forex Backtest - Instruments ({start_str} to {end_str})")
     return {
         "signals_by_ticker": signals_by_ticker,
         "trade_logs_by_ticker": trade_logs_by_ticker,
         "trade_log": trade_log,
         "summary": summary,
         "figure": figure,
+        "tickers": tickers,
+        "universe_source": universe_source,
         "start": start_str,
         "end": end_str,
     }
+
+
+def run_mtf_all_oanda_instruments_backtest(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    config: Optional[MTFBacktestConfig] = None,
+) -> Dict[str, object]:
+    """Run the MTF backtest across the full tradeable OANDA instrument universe."""
+    return run_mtf_major_pairs_backtest(tickers=None, start=start, end=end, config=config)
 
 
 def run_mtf_forex_backtest(

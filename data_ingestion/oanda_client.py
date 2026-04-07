@@ -9,7 +9,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Sequence
 
 import pandas as pd
 from loguru import logger
@@ -141,6 +141,58 @@ class OandaClient:
         endpoint = accounts.AccountSummary(self.config.account_id)
         response = self._make_request(endpoint)
         return response.get("account", {})
+
+    def list_account_instruments(
+        self,
+        instruments_filter: Optional[Sequence[str]] = None,
+        only_tradeable: bool = True,
+    ) -> list[dict]:
+        """
+        List instruments configured for the account.
+
+        Args:
+            instruments_filter: Optional instrument names to request (e.g., ["EUR_USD"]).
+            only_tradeable: Keep only instruments marked tradeable by OANDA.
+
+        Returns:
+            List of instrument dictionaries from OANDA.
+        """
+        params = {}
+        if instruments_filter:
+            params["instruments"] = ",".join(instruments_filter)
+
+        endpoint = accounts.AccountInstruments(self.config.account_id, params=params or None)
+        response = self._make_request(endpoint)
+        instruments_data = response.get("instruments", [])
+
+        if only_tradeable:
+            instruments_data = [row for row in instruments_data if row.get("tradeable", False)]
+
+        return instruments_data
+
+    def list_instrument_names(
+        self,
+        instrument_types: Optional[Sequence[str]] = None,
+        only_tradeable: bool = True,
+    ) -> list[str]:
+        """
+        List account instrument names, optionally filtered by OANDA type.
+
+        Args:
+            instrument_types: Optional OANDA instrument types (e.g., ["CURRENCY", "METAL"]).
+            only_tradeable: Keep only instruments marked tradeable.
+
+        Returns:
+            Sorted unique instrument names (e.g., "EUR_USD").
+        """
+        rows = self.list_account_instruments(only_tradeable=only_tradeable)
+
+        if instrument_types:
+            allowed_types = {value.upper() for value in instrument_types}
+            rows = [row for row in rows if str(row.get("type", "")).upper() in allowed_types]
+
+        names = {str(row.get("name", "")).strip() for row in rows}
+        return sorted(name for name in names if name)
 
     def get_candles(
         self,
