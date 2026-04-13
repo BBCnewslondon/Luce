@@ -67,3 +67,32 @@ Only when one of these regimes is active can 5-minute entries occur.
 ## Plot output
 - Top pane: Close, EMA 8/20/50/200, long/short markers, active 4-hour regime shading
 - Bottom pane: MACD histogram, MACD line, MACD signal line
+
+## Live bot foundation (OANDA + MTF)
+- Bot module: `execution/mtf_oanda_bot.py`
+- Runs a single execution cycle:
+  - Pulls 5m and 4h candles from OANDA via `fetch_forex_data_oanda`
+  - Builds MTF signals using `build_mtf_signal_frame`
+  - Reads current open position from OANDA
+  - Reconciles actual vs desired position and either:
+    - closes an existing position
+    - rebalances to target units
+    - holds
+- Environment configuration:
+  - `BOT_SYMBOL` (default `EUR_USD`)
+  - `BOT_ORDER_UNITS` (default `1000`)
+  - `BOT_LOOKBACK_DAYS` (default `45`)
+  - `BOT_DRY_RUN` (default `true`)
+  - plus OANDA credentials (`OANDA_ACCOUNT_ID`, `OANDA_API_TOKEN`, optional `OANDA_ENVIRONMENT`)
+
+## Docker and Azure VM foundation
+- Container build files:
+  - `Dockerfile`
+  - `requirements.bot.txt` (minimal runtime dependencies for bot execution)
+  - `docker-compose.azure-vm.yml`
+- Azure VM bootstrap flow:
+  1. Provision Linux VM in Azure.
+  2. Install Docker + Docker Compose plugin.
+  3. Copy repo to VM and set required environment variables.
+  4. Start bot container:
+     - `docker compose -f docker-compose.azure-vm.yml up -d --build`

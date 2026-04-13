@@ -1,0 +1,5 @@
+pandas>=2.0.0
+numpy>=1.24.0
+pandas_ta>=0.3.14b0
+oandapyV20>=0.7.2
+loguru>=0.7.0
