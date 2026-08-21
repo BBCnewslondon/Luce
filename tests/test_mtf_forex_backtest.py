@@ -10,6 +10,7 @@ from evaluation.mtf_forex_backtest import (
     build_mtf_signal_frame,
     make_major_pairs_subplots,
     make_mtf_plot,
+    select_top_instruments,
 )
 
 
@@ -534,3 +535,32 @@ def test_all_oanda_instruments_wrapper_delegates_to_major_runner(monkeypatch):
     assert captured["tickers"] is None
     assert captured["start"] == "2024-01-01"
     assert captured["end"] == "2024-01-02"
+
+
+def test_select_top_instruments_applies_trade_return_and_drawdown_guards():
+    summary = pd.DataFrame(
+        {
+            "ticker": ["LOW_SAMPLE", "GOOD", "NEGATIVE", "DEEP_DD", "NO_PF"],
+            "closed_trades": [14, 15, 30, 40, 50],
+            "profit_factor": [99.0, 2.0, 8.0, 7.0, np.nan],
+            "total_return": [0.5, 0.02, -0.01, 0.1, 0.2],
+            "max_drawdown": [-0.01, -0.02, -0.01, -0.04, -0.01],
+            "error": [None, None, None, None, None],
+        }
+    )
+
+    assert select_top_instruments(summary) == ["GOOD"]
+
+
+def test_select_top_instruments_uses_trade_count_as_tie_breaker():
+    summary = pd.DataFrame(
+        {
+            "ticker": ["FEWER", "MORE"],
+            "closed_trades": [15, 20],
+            "profit_factor": [2.0, 2.0],
+            "total_return": [0.01, 0.01],
+            "max_drawdown": [-0.01, -0.01],
+        }
+    )
+
+    assert select_top_instruments(summary, limit=2) == ["MORE", "FEWER"]

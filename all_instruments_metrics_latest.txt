@@ -1,0 +1,15 @@
+rows=123 successful=100 failed=23
+mean_return=1.7150% median_return=1.0948% median_drawdown=-1.2616%
+entries=2520 trades=2520
+    ticker  entries   win_pct  profit_factor  total_return  max_drawdown
+   XAG_NZD       36 44.444444       1.899498      0.096625     -0.035257
+   XAU_JPY       17 47.058824       5.315762      0.088795     -0.016227
+   XAG_JPY       25 52.000000       1.897033      0.087169     -0.041747
+  SG30_SGD       31 45.161290       3.285945      0.078564     -0.012839
+ WHEAT_USD       13 53.846154       2.411084      0.076818     -0.033967
+   XAG_GBP       23 52.173913       1.845882      0.076214     -0.041507
+JP225Y_JPY       14 64.285714       3.639267      0.073643     -0.026030
+ JP225_USD       14 64.285714       3.434813      0.071867     -0.026008
+NAS100_USD       29 55.172414       2.005096      0.060276     -0.029108
+NATGAS_USD       24 50.000000       1.955828      0.055949     -0.027286
+failure_types={'<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="utf-8"/>\n    <title>Internal Se': 23}

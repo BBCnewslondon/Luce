@@ -293,6 +293,54 @@ def _trade_outcome_metrics(trade_log: pd.DataFrame) -> Dict[str, float]:
     }
 
 
+def select_top_instruments(
+    summary: pd.DataFrame,
+    limit: int = 10,
+    minimum_trades: int = 15,
+    max_drawdown: float = -0.03,
+    require_positive_return: bool = True,
+) -> list[str]:
+    """Select a deterministic live-trading universe from backtest results.
+
+    Rows without a valid profit factor or with a recorded backtest error are
+    excluded. Profit factor is ranked first, with trade count as a tie-breaker.
+    ``max_drawdown`` is expressed as a negative decimal, matching the summary
+    output (for example, ``-0.03`` means a maximum drawdown of 3%).
+    """
+    if limit <= 0:
+        raise ValueError("limit must be greater than zero")
+    if minimum_trades < 1:
+        raise ValueError("minimum_trades must be at least one")
+    if max_drawdown > 0:
+        raise ValueError("max_drawdown must be zero or negative")
+
+    required = {"ticker", "closed_trades", "profit_factor", "total_return", "max_drawdown"}
+    missing = required.difference(summary.columns)
+    if missing:
+        raise KeyError(f"summary missing required columns: {sorted(missing)}")
+
+    candidates = summary.copy()
+    if "error" in candidates.columns:
+        candidates = candidates[candidates["error"].isna()]
+    for column in ("closed_trades", "profit_factor", "total_return", "max_drawdown"):
+        candidates[column] = pd.to_numeric(candidates[column], errors="coerce")
+
+    candidates = candidates[
+        candidates["closed_trades"].ge(minimum_trades)
+        & np.isfinite(candidates["profit_factor"])
+        & candidates["max_drawdown"].ge(max_drawdown)
+    ]
+    if require_positive_return:
+        candidates = candidates[candidates["total_return"].gt(0)]
+
+    ranked = candidates.sort_values(
+        ["profit_factor", "closed_trades", "ticker"],
+        ascending=[False, False, True],
+        kind="mergesort",
+    )
+    return ranked["ticker"].astype(str).head(limit).tolist()
+
+
 def _bullish_filter(ind: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.Series:
     if len(cfg.ema_periods) < 4:
         raise ValueError("ema_periods must contain at least 4 periods")
@@ -689,7 +737,7 @@ def make_major_pairs_subplots(
         rows=len(tickers),
         cols=1,
         shared_xaxes=False,
-        vertical_spacing=0.03,
+        vertical_spacing=min(0.03, 0.8 / max(len(tickers) - 1, 1)),
         subplot_titles=tickers,
     )
     legend_shown = {
@@ -806,6 +854,7 @@ def run_mtf_major_pairs_backtest(
     start: Optional[str] = None,
     end: Optional[str] = None,
     config: Optional[MTFBacktestConfig] = None,
+    include_plot: bool = True,
 ) -> Dict[str, object]:
     """Run the MTF backtest and return summary + subplot figure.
 
@@ -896,13 +945,13 @@ def run_mtf_major_pairs_backtest(
                 "pnl_pct",
             ]
         )
-    if signals_by_ticker:
+    if include_plot and signals_by_ticker:
         universe_label = "OANDA Instruments" if universe_source == "oanda_account" else "Major Pairs"
         figure = make_major_pairs_subplots(
             signals_by_ticker,
             title=f"MTF Forex Backtest - {universe_label} ({start_str} to {end_str})",
         )
-    else:  # pragma: no cover - runtime/data-path dependent
+    elif include_plot:  # pragma: no cover - runtime/data-path dependent
         figure = go.Figure()
         figure.add_annotation(
             text="No successful pair downloads for selected window.",
@@ -913,6 +962,8 @@ def run_mtf_major_pairs_backtest(
             showarrow=False,
         )
         figure.update_layout(title=f"MTF Forex Backtest - Instruments ({start_str} to {end_str})")
+    else:
+        figure = None
     return {
         "signals_by_ticker": signals_by_ticker,
         "trade_logs_by_ticker": trade_logs_by_ticker,

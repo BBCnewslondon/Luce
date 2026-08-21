@@ -7,19 +7,30 @@ oanda:
   environment: "practice"  # "practice" or "live"
 
 symbols:
-  - EUR_USD
-  - GBP_USD
-  - GBP_NZD
-  - XAU_USD
-  - USD_JPY
-  - USD_CHF
-  - AUD_USD
-  - USD_CAD
+  # Selected from the latest OANDA all-instrument backtest:
+  # >=15 closed trades, positive return, max drawdown no worse than 3%.
+  - XAU_NZD
+  - NZD_CHF
+  - CAD_HKD
+  - EUR_PLN
+  - EUR_HUF
+  - NZD_JPY
+  - SG30_SGD
+  - GBP_JPY
+  - EUR_GBP
+  - GBP_SGD
 
 trading:
-  granularity: "H1"
+  granularity: "M5"
   lookback_bars: 500
   signal_threshold: 0.6  # Minimum confidence to trade
+
+universe_selection:
+  ranking_metric: "profit_factor"
+  minimum_closed_trades: 15
+  require_positive_return: true
+  max_drawdown: -0.03
+  limit: 10
 
 risk:
   max_position_pct: 0.02  # 2% of equity per position

@@ -1,7 +1,15 @@
 # Current MTF Strategy Overview
 
 ## Strategy objective
-Trade EURUSD intraday on 5-minute candles while only taking trades in the direction of a lag-safe 4-hour trend filter.
+Trade the configured top-ten instrument universe on 5-minute candles while only taking trades in the direction of a lag-safe 4-hour trend filter.
+
+## Instrument selection
+The configured universe is selected by descending profit factor from the latest all-instrument backtest, subject to these guards:
+- At least 15 closed trades.
+- Positive total return.
+- Maximum drawdown no worse than 3% (`max_drawdown >= -0.03`).
+
+The selection is point-in-time configuration, not a guarantee of future performance. Re-run the backtest over multiple walk-forward windows and update the universe only after the candidates remain stable out of sample.
 
 ## Data and timeframes
 - Data source: OANDA REST v20 candles API
