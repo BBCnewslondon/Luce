@@ -10,6 +10,7 @@ from evaluation.mtf_forex_backtest import (
     build_mtf_signal_frame,
     make_major_pairs_subplots,
     make_mtf_plot,
+    filter_oanda_markets,
     select_top_instruments,
 )
 
@@ -564,3 +565,31 @@ def test_select_top_instruments_uses_trade_count_as_tie_breaker():
     )
 
     assert select_top_instruments(summary, limit=2) == ["MORE", "FEWER"]
+
+
+def test_filter_oanda_markets_keeps_main_28_indices_and_commodities():
+    instruments = [
+        "EUR_USD",
+        "USD_TRY",
+        "JP225_USD",
+        "NAS100_USD",
+        "NATGAS_USD",
+        "XAU_USD",
+        "WTICO_USD",
+    ]
+
+    assert filter_oanda_markets(instruments) == ["EUR_USD", "JP225_USD", "NAS100_USD", "NATGAS_USD", "WTICO_USD"]
+
+
+def test_select_top_instruments_can_rank_only_filtered_markets():
+    summary = pd.DataFrame(
+        {
+            "ticker": ["USD_TRY", "EUR_USD", "JP225_USD"],
+            "closed_trades": [30, 20, 20],
+            "profit_factor": [10.0, 2.0, 3.0],
+            "total_return": [0.1, 0.02, 0.03],
+            "max_drawdown": [-0.01, -0.01, -0.02],
+        }
+    )
+
+    assert select_top_instruments(summary, allowed_instruments=summary["ticker"]) == ["JP225_USD", "EUR_USD"]

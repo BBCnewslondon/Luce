@@ -4,12 +4,29 @@
 Trade the configured top-ten instrument universe on 5-minute candles while only taking trades in the direction of a lag-safe 4-hour trend filter.
 
 ## Instrument selection
-The configured universe is selected by descending profit factor from the latest all-instrument backtest, subject to these guards:
+The configured universe is selected by descending profit factor from the latest backtest across the main FX pairs, recognized OANDA indices, and recognized OANDA commodities, subject to these guards:
 - At least 15 closed trades.
 - Positive total return.
 - Maximum drawdown no worse than 3% (`max_drawdown >= -0.03`).
 
+Recognized commodities include crude oil, natural gas, corn, soybeans, sugar, and wheat contracts. They are eligible for selection but are not forced into the portfolio if their performance does not rank in the top ten.
+
 The selection is point-in-time configuration, not a guarantee of future performance. Re-run the backtest over multiple walk-forward windows and update the universe only after the candidates remain stable out of sample.
+
+## Practice bot
+Set `OANDA_ACCOUNT_ID`, `OANDA_API_TOKEN`, and optionally `OANDA_ENVIRONMENT=practice` in the environment. The runner refuses any environment other than practice and defaults to dry-run mode:
+
+```powershell
+python -m trading.practice_bot --once
+```
+
+To submit orders to the OANDA practice account, use the explicit execution switch:
+
+```powershell
+python -m trading.practice_bot --execute
+```
+
+The bot evaluates completed M5 candles, uses the lagged H4 filter, submits the strategy stop and take-profit with each entry, closes positions on filter exits, and caps open positions at the configured risk limit. Position sizing is currently fixed at `units_per_trade`; it is not yet account-equity or pip-value normalized.
 
 ## Data and timeframes
 - Data source: OANDA REST v20 candles API

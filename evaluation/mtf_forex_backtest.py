@@ -30,6 +30,26 @@ MAJOR_FX_TICKERS: Sequence[str] = (
     "NZDUSD=X",
 )
 
+MAIN_28_FX_PAIRS = frozenset(
+    {
+        "AUD_CAD", "AUD_CHF", "AUD_JPY", "AUD_NZD", "AUD_USD",
+        "CAD_CHF", "CAD_JPY", "CHF_JPY",
+        "EUR_AUD", "EUR_CAD", "EUR_CHF", "EUR_GBP", "EUR_JPY", "EUR_NZD", "EUR_USD",
+        "GBP_AUD", "GBP_CAD", "GBP_CHF", "GBP_JPY", "GBP_NZD", "GBP_USD",
+        "NZD_CAD", "NZD_CHF", "NZD_JPY", "NZD_USD",
+        "USD_CAD", "USD_CHF", "USD_JPY",
+    }
+)
+INDEX_INSTRUMENT_PREFIXES = frozenset(
+    {
+        "AU200", "CH20", "CHINAH", "CN50", "DE30", "ESPIX", "EU50",
+        "FR40", "HK33", "JP225", "JP225Y", "NAS100", "NL25", "SG30", "SPX500",
+    }
+)
+COMMODITY_INSTRUMENT_PREFIXES = frozenset(
+    {"BCO", "CORN", "NATGAS", "SOYBN", "SUGAR", "WHEAT", "WTICO"}
+)
+
 
 @dataclass(frozen=True)
 class MTFBacktestConfig:
@@ -111,6 +131,28 @@ def get_available_oanda_instruments(only_tradeable: bool = True) -> list[str]:
 
     client = OandaClient()
     return client.list_instrument_names(only_tradeable=only_tradeable)
+
+
+def filter_oanda_markets(
+    instruments: Sequence[str],
+    include_indices: bool = True,
+    include_commodities: bool = True,
+) -> list[str]:
+    """Keep main FX pairs, recognized indices, and optionally commodities."""
+    filtered = []
+    for instrument in instruments:
+        try:
+            normalized = _to_oanda_instrument(instrument)
+        except ValueError:
+            continue
+        prefix = normalized.split("_", 1)[0]
+        if (
+            normalized in MAIN_28_FX_PAIRS
+            or (include_indices and prefix in INDEX_INSTRUMENT_PREFIXES)
+            or (include_commodities and prefix in COMMODITY_INSTRUMENT_PREFIXES)
+        ):
+            filtered.append(normalized)
+    return list(dict.fromkeys(filtered))
 
 
 def _normalize_oanda_ohlcv(frame: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -299,6 +341,7 @@ def select_top_instruments(
     minimum_trades: int = 15,
     max_drawdown: float = -0.03,
     require_positive_return: bool = True,
+    allowed_instruments: Optional[Sequence[str]] = None,
 ) -> list[str]:
     """Select a deterministic live-trading universe from backtest results.
 
@@ -322,6 +365,10 @@ def select_top_instruments(
     candidates = summary.copy()
     if "error" in candidates.columns:
         candidates = candidates[candidates["error"].isna()]
+    if allowed_instruments is not None:
+        allowed = set(filter_oanda_markets(allowed_instruments))
+        candidates["ticker"] = candidates["ticker"].map(_to_oanda_instrument)
+        candidates = candidates[candidates["ticker"].isin(allowed)]
     for column in ("closed_trades", "profit_factor", "total_return", "max_drawdown"):
         candidates[column] = pd.to_numeric(candidates[column], errors="coerce")
 

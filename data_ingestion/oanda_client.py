@@ -528,8 +528,8 @@ class OandaClient:
         self,
         symbol: str,
         units: int,
-        stop_loss_pips: Optional[float] = None,
-        take_profit_pips: Optional[float] = None,
+        stop_loss_price: Optional[float] = None,
+        take_profit_price: Optional[float] = None,
     ) -> dict:
         """
         Place a market order.
@@ -537,8 +537,8 @@ class OandaClient:
         Args:
             symbol: Currency pair.
             units: Positive for buy, negative for sell.
-            stop_loss_pips: Stop loss in pips from entry.
-            take_profit_pips: Take profit in pips from entry.
+            stop_loss_price: Absolute stop-loss price.
+            take_profit_price: Absolute take-profit price.
 
         Returns:
             Order response dictionary.
@@ -553,12 +553,16 @@ class OandaClient:
             }
         }
 
-        # Note: In production, calculate actual price levels from pips
-        # This simplified version logs the intent
-        if stop_loss_pips or take_profit_pips:
-            logger.info(
-                f"Order with SL={stop_loss_pips} pips, TP={take_profit_pips} pips"
-            )
+        if stop_loss_price is not None:
+            order_data["order"]["stopLossOnFill"] = {
+                "price": f"{stop_loss_price:.10f}",
+                "timeInForce": "GTC",
+            }
+        if take_profit_price is not None:
+            order_data["order"]["takeProfitOnFill"] = {
+                "price": f"{take_profit_price:.10f}",
+                "timeInForce": "GTC",
+            }
 
         endpoint = orders.OrderCreate(self.config.account_id, data=order_data)
         return self._make_request(endpoint)
