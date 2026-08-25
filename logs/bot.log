@@ -1,0 +1,7 @@
+2026-08-25 23:40:22 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-08-25 23:40:22 [INFO] oandapyV20.oandapyV20: setting up API-client for environment practice
+2026-08-25 23:40:22 [INFO] __main__: Configuration loaded: 10 symbols, poll_seconds=60
+2026-08-25 23:40:22 [INFO] __main__: Running single cycle mode
+2026-08-25 23:40:22 [INFO] oandapyV20.oandapyV20: performing request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions
+2026-08-25 23:40:22 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api-fxpractice.oanda.com:443
+2026-08-25 23:40:22 [ERROR] oandapyV20.oandapyV20: request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions failed [HTTPSConnectionPool(host='api-fxpractice.oanda.com', port=443): Max retries exceeded with url: /v3/accounts/101-004-31569953-001/openPositions (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))]
