@@ -66,24 +66,54 @@ class MTFBacktestConfig:
     pip_size: float = 0.0001
 
 
-def _require_pandas_ta() -> None:
-    if ta is None:
-        raise ImportError("pandas_ta is required. Install with: pip install pandas_ta")
+def _ema(series: pd.Series, length: int) -> pd.Series:
+    """Compute exponential moving average."""
+    return series.ewm(span=length, adjust=False).mean()
+
+
+def _rsi(series: pd.Series, length: int) -> pd.Series:
+    """Compute Relative Strength Index."""
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=length).mean()
+    avg_loss = loss.rolling(window=length).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def _macd(series: pd.Series, fast: int, slow: int, signal: int) -> tuple[pd.Series, pd.Series]:
+    """Compute MACD line and signal line."""
+    ema_fast = _ema(series, fast)
+    ema_slow = _ema(series, slow)
+    macd_line = ema_fast - ema_slow
+    signal_line = _ema(macd_line, signal)
+    return macd_line, signal_line
 
 
 def _add_indicators(frame: pd.DataFrame, cfg: MTFBacktestConfig) -> pd.DataFrame:
-    _require_pandas_ta()
     out = frame.copy()
     close = out["close"]
-    for period in cfg.ema_periods:
-        out[f"ema_{period}"] = ta.ema(close, length=period)
-
-    macd = ta.macd(close, fast=cfg.macd_fast, slow=cfg.macd_slow, signal=cfg.macd_signal)
-    out["macd_line"] = macd[f"MACD_{cfg.macd_fast}_{cfg.macd_slow}_{cfg.macd_signal}"]
-    out["macd_signal"] = macd[f"MACDs_{cfg.macd_fast}_{cfg.macd_slow}_{cfg.macd_signal}"]
-
-    out[f"rsi_{cfg.rsi_periods[0]}"] = ta.rsi(close, length=cfg.rsi_periods[0])
-    out[f"rsi_{cfg.rsi_periods[1]}"] = ta.rsi(close, length=cfg.rsi_periods[1])
+    
+    # Use pandas_ta if available, otherwise use built-in implementations
+    if ta is not None:
+        for period in cfg.ema_periods:
+            out[f"ema_{period}"] = ta.ema(close, length=period)
+        macd = ta.macd(close, fast=cfg.macd_fast, slow=cfg.macd_slow, signal=cfg.macd_signal)
+        out["macd_line"] = macd[f"MACD_{cfg.macd_fast}_{cfg.macd_slow}_{cfg.macd_signal}"]
+        out["macd_signal"] = macd[f"MACDs_{cfg.macd_fast}_{cfg.macd_slow}_{cfg.macd_signal}"]
+        out[f"rsi_{cfg.rsi_periods[0]}"] = ta.rsi(close, length=cfg.rsi_periods[0])
+        out[f"rsi_{cfg.rsi_periods[1]}"] = ta.rsi(close, length=cfg.rsi_periods[1])
+    else:
+        # Fallback: built-in implementations
+        for period in cfg.ema_periods:
+            out[f"ema_{period}"] = _ema(close, period)
+        macd_line, signal_line = _macd(close, cfg.macd_fast, cfg.macd_slow, cfg.macd_signal)
+        out["macd_line"] = macd_line
+        out["macd_signal"] = signal_line
+        out[f"rsi_{cfg.rsi_periods[0]}"] = _rsi(close, cfg.rsi_periods[0])
+        out[f"rsi_{cfg.rsi_periods[1]}"] = _rsi(close, cfg.rsi_periods[1])
+    
     return out
 
 
