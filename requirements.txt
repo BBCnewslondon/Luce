@@ -1,10 +1,6 @@
 # Core dependencies
-pandas>=2.0.0
-numpy>=1.24.0
-
-# Technical analysis
-TA-Lib>=0.4.28
-pandas_ta>=0.3.14b0
+pandas>=2.0.0,<4.0.0
+numpy>=2.0.0,<3.0.0
 
 # OANDA API
 oandapyV20>=0.7.2
@@ -18,6 +14,13 @@ python-dotenv>=1.0.0
 # Logging and monitoring
 loguru>=0.7.0
 
+# Technical analysis (optional)
+# Note: pandas_ta requires numba which is incompatible with Python 3.14
+# The bot includes built-in implementations of EMA, MACD, and RSI
+# If you need pandas_ta, use Python 3.13 or earlier:
+# pandas_ta>=0.3.14b0
+
 # Testing
 pytest>=7.4.0
 pytest-cov>=4.1.0
+
