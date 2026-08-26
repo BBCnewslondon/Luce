@@ -12,10 +12,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Sequence
+import os 
+from dotenv import load_dotenv
 
 import numpy as np
 import pandas as pd
 import yaml
+from dotenv import load_dotenv
 
 from data_ingestion.oanda_client import OandaClient
 from evaluation.mtf_forex_backtest import (
@@ -318,6 +321,9 @@ def load_config(path: str = "config/settings.yaml") -> PracticeBotConfig:
 
 
 def main() -> None:
+    # Load environment variables from .env file
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="Run the Luce MTF strategy on OANDA practice")
     parser.add_argument("--once", action="store_true", help="process one polling cycle")
     parser.add_argument("--execute", action="store_true", help="submit practice orders; default is dry run")
