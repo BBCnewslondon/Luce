@@ -61,6 +61,10 @@ def _setup_logging(log_dir: str = "logs") -> None:
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
+    
+    # Suppress verbose third-party logs
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("oandapyV20").setLevel(logging.WARNING)
 
 
 @dataclass(frozen=True)

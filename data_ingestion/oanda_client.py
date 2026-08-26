@@ -370,6 +370,7 @@ class OandaClient:
             "to": self._to_oanda_time(to_time),
             "granularity": self.GRANULARITY_MAP[granularity],
             "price": "MBA" if include_spread else "M",
+            "count": self.MAX_CANDLES_PER_REQUEST,
         }
 
         batches: list[pd.DataFrame] = []
