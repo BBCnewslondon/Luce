@@ -83,7 +83,7 @@ class OandaClient:
         self.config = config or OandaConfig.from_env()
         self._api = self._create_api_client()
         self._last_request_time = 0.0
-        logger.info(
+        logger.debug(
             f"OANDA client initialized for account {self.config.account_id[:4]}***"
         )
 
@@ -370,7 +370,6 @@ class OandaClient:
             "to": self._to_oanda_time(to_time),
             "granularity": self.GRANULARITY_MAP[granularity],
             "price": "MBA" if include_spread else "M",
-            "count": self.MAX_CANDLES_PER_REQUEST,
         }
 
         batches: list[pd.DataFrame] = []
