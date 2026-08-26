@@ -42,7 +42,7 @@ def _setup_logging(log_dir: str = "logs") -> None:
     file_handler = logging.handlers.RotatingFileHandler(
         log_file, maxBytes=10 * 1024 * 1024, backupCount=5
     )
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
     
     # Console handler
     console_handler = logging.StreamHandler()
@@ -58,7 +58,7 @@ def _setup_logging(log_dir: str = "logs") -> None:
     
     # Root logger
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 

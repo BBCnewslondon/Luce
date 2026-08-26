@@ -7,24 +7,19 @@ oanda:
   environment: "practice"  # "practice" or "live"
 
 symbols:
-  # Selected from FX, index, and commodity markets in the latest backtest:
-  # >=15 closed trades, positive return, max drawdown no worse than 3%.
-  - AUD_USD
-  - NZD_CHF
-  - NZD_JPY
-  - SG30_SGD
-  - EU50_EUR
-  - GBP_JPY
-  - EUR_GBP
   - EUR_USD
-  - CHF_JPY
+  - USD_JPY
+  - GBP_USD
+  - USD_CHF
+  - AUD_USD
+  - USD_CAD
   - NZD_USD
 
 trading:
   granularity: "M5"
   lookback_bars: 500
   signal_threshold: 0.6  # Minimum confidence to trade
-  poll_seconds: 60
+  poll_seconds: 300
   lookback_days: 10
   units_per_trade: 1000
   dry_run: true  # Set false only when deliberately executing practice orders.
