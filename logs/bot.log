@@ -5,3 +5,44 @@
 2026-08-25 23:40:22 [INFO] oandapyV20.oandapyV20: performing request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions
 2026-08-25 23:40:22 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api-fxpractice.oanda.com:443
 2026-08-25 23:40:22 [ERROR] oandapyV20.oandapyV20: request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions failed [HTTPSConnectionPool(host='api-fxpractice.oanda.com', port=443): Max retries exceeded with url: /v3/accounts/101-004-31569953-001/openPositions (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))]
+2026-08-25 23:47:29 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-08-25 23:47:29 [INFO] oandapyV20.oandapyV20: setting up API-client for environment practice
+2026-08-25 23:47:29 [INFO] __main__: Configuration loaded: 10 symbols, poll_seconds=60
+2026-08-25 23:47:29 [INFO] __main__: Running single cycle mode
+2026-08-25 23:47:29 [INFO] oandapyV20.oandapyV20: performing request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions
+2026-08-25 23:47:29 [DEBUG] urllib3.connectionpool: Starting new HTTPS connection (1): api-fxpractice.oanda.com:443
+2026-08-25 23:47:29 [ERROR] oandapyV20.oandapyV20: request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-001/openPositions failed [HTTPSConnectionPool(host='api-fxpractice.oanda.com', port=443): Max retries exceeded with url: /v3/accounts/101-004-31569953-001/openPositions (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))]
+2026-08-26 14:53:43 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-08-26 14:53:43 [INFO] __main__: Configuration loaded: 7 symbols, poll_seconds=300
+2026-08-26 14:53:43 [INFO] __main__: Running single cycle mode
+2026-08-29 11:25:36 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-08-29 11:25:36 [INFO] __main__: Configuration loaded: 7 symbols, poll_seconds=300
+2026-08-29 11:25:36 [INFO] __main__: Running single cycle mode
+2026-09-21 13:19:35 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-09-21 13:19:35 [INFO] __main__: Configuration loaded: 7 symbols, poll_seconds=300
+2026-09-21 13:19:35 [INFO] __main__: Running single cycle mode
+2026-09-21 13:19:35 [ERROR] oandapyV20.oandapyV20: request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-002/openPositions failed [401,{"errorMessage":"Insufficient authorization to perform request."}]
+2026-09-21 13:20:56 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-09-21 13:20:56 [INFO] __main__: Configuration loaded: 7 symbols, poll_seconds=300
+2026-09-21 13:20:56 [INFO] __main__: Running single cycle mode
+2026-09-21 13:20:56 [ERROR] oandapyV20.oandapyV20: request https://api-fxpractice.oanda.com/v3/accounts/101-004-31569953-002/openPositions failed [401,{"errorMessage":"Insufficient authorization to perform request."}]
+2026-09-21 13:20:56 [ERROR] __main__: Failed to fetch open positions from OANDA
+Traceback (most recent call last):
+  File "/home/armaan/Projects/Luce/trading/practice_bot.py", line 276, in run_once
+    positions = self._position_map(self.client.get_open_positions())
+                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/armaan/Projects/Luce/data_ingestion/oanda_client.py", line 502, in get_open_positions
+    response = self._make_request(endpoint)
+  File "/home/armaan/Projects/Luce/data_ingestion/oanda_client.py", line 129, in _make_request
+    return self._api.request(endpoint)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/armaan/Projects/Luce/.venv/lib/python3.14/site-packages/oandapyV20/oandapyV20.py", line 337, in request
+    response = self.__request(method, url,
+                              request_args, headers=headers)
+  File "/home/armaan/Projects/Luce/.venv/lib/python3.14/site-packages/oandapyV20/oandapyV20.py", line 274, in __request
+    raise V20Error(response.status_code,
+                   response.content.decode('utf-8'))
+oandapyV20.exceptions.V20Error: {"errorMessage":"Insufficient authorization to perform request."}
+2026-09-21 13:28:26 [INFO] __main__: Starting Luce Trading Bot (dry_run=True)
+2026-09-21 13:28:26 [INFO] __main__: Configuration loaded: 7 symbols, poll_seconds=300
+2026-09-21 13:28:26 [INFO] __main__: Running single cycle mode

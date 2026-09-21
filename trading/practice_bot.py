@@ -272,7 +272,11 @@ class PracticeTradingBot:
         """Process each configured symbol once using the latest completed candles."""
         current_time = now or datetime.now(timezone.utc)
         should_execute = not self.config.dry_run if execute is None else execute
-        positions = self._position_map(self.client.get_open_positions())
+        try:
+            positions = self._position_map(self.client.get_open_positions())
+        except Exception:
+            logger.exception("Failed to fetch open positions from OANDA")
+            return
         for symbol in self.config.symbols:
             try:
                 candle_time, signal = self._load_signal(symbol, current_time)

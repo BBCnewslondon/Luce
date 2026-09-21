@@ -166,7 +166,10 @@ class OandaClient:
         instruments_data = response.get("instruments", [])
 
         if only_tradeable:
-            instruments_data = [row for row in instruments_data if row.get("tradeable", False)]
+            instruments_data = [
+                row for row in instruments_data
+                if row.get("tradeable", True) and str(row.get("state", "TRADEABLE")).upper() == "TRADEABLE"
+            ]
 
         return instruments_data
 
@@ -174,18 +177,23 @@ class OandaClient:
         self,
         instrument_types: Optional[Sequence[str]] = None,
         only_tradeable: bool = True,
+        instruments_filter: Optional[Sequence[str]] = None,
     ) -> list[str]:
         """
-        List account instrument names, optionally filtered by OANDA type.
+        List account instrument names, optionally filtered by OANDA type or name list.
 
         Args:
             instrument_types: Optional OANDA instrument types (e.g., ["CURRENCY", "METAL"]).
             only_tradeable: Keep only instruments marked tradeable.
+            instruments_filter: Optional specific instrument names to query.
 
         Returns:
             Sorted unique instrument names (e.g., "EUR_USD").
         """
-        rows = self.list_account_instruments(only_tradeable=only_tradeable)
+        rows = self.list_account_instruments(
+            instruments_filter=instruments_filter,
+            only_tradeable=only_tradeable,
+        )
 
         if instrument_types:
             allowed_types = {value.upper() for value in instrument_types}

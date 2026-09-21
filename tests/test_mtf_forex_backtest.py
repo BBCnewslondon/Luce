@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
+try:
+    import pandas_ta as ta
+except ImportError:
+    ta = None
 import evaluation.mtf_forex_backtest as mtf_module
 
 from evaluation.mtf_forex_backtest import (
@@ -92,11 +95,18 @@ def test_build_mtf_signal_frame_has_required_outputs_and_synchronized_h4_columns
     comparable = out[["h4_ema_8"]].join(mapped_h4_ema.rename("expected")).dropna()
     assert np.allclose(comparable["h4_ema_8"].values, comparable["expected"].values)
 
-    macd = ta.macd(h4["close"], fast=8, slow=21, signal=5)
-    h4_macd_line = macd["MACD_8_21_5"].reindex(out.index).ffill()
-    h4_macd_signal = macd["MACDs_8_21_5"].reindex(out.index).ffill()
-    h4_rsi_13 = ta.rsi(h4["close"], length=13).reindex(out.index).ffill()
-    h4_rsi_5 = ta.rsi(h4["close"], length=5).reindex(out.index).ffill()
+    if ta is not None:
+        macd = ta.macd(h4["close"], fast=8, slow=21, signal=5)
+        h4_macd_line = macd["MACD_8_21_5"].reindex(out.index).ffill()
+        h4_macd_signal = macd["MACDs_8_21_5"].reindex(out.index).ffill()
+        h4_rsi_13 = ta.rsi(h4["close"], length=13).reindex(out.index).ffill()
+        h4_rsi_5 = ta.rsi(h4["close"], length=5).reindex(out.index).ffill()
+    else:
+        macd_line, macd_signal = mtf_module._macd(h4["close"], fast=8, slow=21, signal=5)
+        h4_macd_line = macd_line.reindex(out.index).ffill()
+        h4_macd_signal = macd_signal.reindex(out.index).ffill()
+        h4_rsi_13 = mtf_module._rsi(h4["close"], length=13).reindex(out.index).ffill()
+        h4_rsi_5 = mtf_module._rsi(h4["close"], length=5).reindex(out.index).ffill()
     merged = out[["h4_macd_line", "h4_macd_signal", "h4_rsi_13", "h4_rsi_5"]].join(
         pd.DataFrame(
             {
